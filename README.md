@@ -1,8 +1,4 @@
-- 👋 Hi, I’m Adam 
-- 👀 I’m interested in smashing your mother
-- 🌱 I’m currently learning how to smash your mom
-- 💞️ I’m looking to collaborate on smashing your mom
-- 📫 How to reach me adamerinnyc@gmail.com
+dumbass with a computer
 
 <!---
 Goobling/Goobling is a ✨ special ✨ repository because its `README.md` (this file) appears on your GitHub profile.
