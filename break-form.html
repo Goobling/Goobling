@@ -1,0 +1,473 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Employee Break Log</title>
+<style>
+  :root {
+    --bg: #f5f6f8;
+    --card: #ffffff;
+    --text: #1a1d23;
+    --muted: #6b7280;
+    --border: #e2e5ea;
+    --accent: #2563eb;
+    --accent-hover: #1d4ed8;
+    --danger: #dc2626;
+    --success: #16a34a;
+    --warning-bg: #fef3c7;
+    --warning-text: #92400e;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #14161a;
+      --card: #1e2128;
+      --text: #e8e9ec;
+      --muted: #9aa0ab;
+      --border: #2c3038;
+      --accent: #3b82f6;
+      --accent-hover: #60a5fa;
+      --danger: #f87171;
+      --success: #4ade80;
+      --warning-bg: #3a2f1a;
+      --warning-text: #fbbf24;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    padding: 24px 16px 64px;
+  }
+  .wrap {
+    max-width: 640px;
+    margin: 0 auto;
+  }
+  header {
+    text-align: center;
+    margin-bottom: 24px;
+  }
+  header h1 {
+    font-size: 1.5rem;
+    margin: 0 0 4px;
+  }
+  header p {
+    color: var(--muted);
+    margin: 0;
+    font-size: 0.9rem;
+  }
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+    margin-bottom: 20px;
+  }
+  label {
+    display: block;
+    font-size: 0.85rem;
+    font-weight: 600;
+    margin-bottom: 6px;
+    margin-top: 14px;
+  }
+  label:first-of-type { margin-top: 0; }
+  input, select, textarea {
+    width: 100%;
+    padding: 10px 12px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: var(--bg);
+    color: var(--text);
+    font-size: 0.95rem;
+    font-family: inherit;
+  }
+  textarea { resize: vertical; min-height: 60px; }
+  input:focus, select:focus, textarea:focus {
+    outline: none;
+    border-color: var(--accent);
+  }
+  .row {
+    display: flex;
+    gap: 12px;
+  }
+  .row > div { flex: 1; }
+  .hint {
+    font-size: 0.78rem;
+    color: var(--muted);
+    margin-top: 4px;
+  }
+  button {
+    cursor: pointer;
+    font-family: inherit;
+    font-size: 0.95rem;
+    border-radius: 8px;
+    border: none;
+    padding: 11px 18px;
+  }
+  .submit-btn {
+    width: 100%;
+    background: var(--accent);
+    color: white;
+    font-weight: 600;
+    margin-top: 20px;
+  }
+  .submit-btn:hover { background: var(--accent-hover); }
+  .submit-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+  .error {
+    background: var(--warning-bg);
+    color: var(--warning-text);
+    border-radius: 8px;
+    padding: 10px 12px;
+    font-size: 0.85rem;
+    margin-top: 14px;
+    display: none;
+  }
+  .error.show { display: block; }
+  .toast {
+    background: rgba(22,163,74,0.12);
+    color: var(--success);
+    border-radius: 8px;
+    padding: 10px 12px;
+    font-size: 0.85rem;
+    margin-top: 14px;
+    display: none;
+  }
+  .toast.show { display: block; }
+  .log-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+  }
+  .log-header h2 {
+    font-size: 1.05rem;
+    margin: 0;
+  }
+  .log-actions button {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-size: 0.8rem;
+    padding: 6px 10px;
+    margin-left: 8px;
+  }
+  .log-actions button:hover { border-color: var(--accent); color: var(--accent); }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.85rem;
+  }
+  th, td {
+    text-align: left;
+    padding: 8px 6px;
+    border-bottom: 1px solid var(--border);
+  }
+  th {
+    color: var(--muted);
+    font-weight: 600;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+  }
+  .empty-state {
+    color: var(--muted);
+    font-size: 0.85rem;
+    text-align: center;
+    padding: 20px 0;
+  }
+  .badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-size: 0.72rem;
+    font-weight: 600;
+    background: rgba(37,99,235,0.12);
+    color: var(--accent);
+  }
+  .del-btn {
+    background: transparent;
+    border: none;
+    color: var(--muted);
+    font-size: 0.78rem;
+    padding: 2px 6px;
+  }
+  .del-btn:hover { color: var(--danger); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Break Request Log</h1>
+    <p>Shift hours: 9:00 AM – 9:00 PM. Log every break below.</p>
+  </header>
+
+  <div class="card">
+    <form id="break-form">
+      <label for="name">Your name</label>
+      <input type="text" id="name" required placeholder="Full name" autocomplete="name">
+
+      <div class="row">
+        <div>
+          <label for="reason">Reason for break</label>
+          <select id="reason" required>
+            <option value="" disabled selected>Select a reason</option>
+            <option>Lunch</option>
+            <option>Coffee / snack</option>
+            <option>Restroom</option>
+            <option>Personal</option>
+            <option>Medical</option>
+            <option value="Other">Other (specify)</option>
+          </select>
+        </div>
+        <div>
+          <label for="duration">Estimated duration</label>
+          <select id="duration" required>
+            <option value="5">5 minutes</option>
+            <option value="10">10 minutes</option>
+            <option value="15" selected>15 minutes</option>
+            <option value="30">30 minutes</option>
+            <option value="60">60 minutes (lunch)</option>
+          </select>
+        </div>
+      </div>
+
+      <div id="other-reason-wrap" style="display:none;">
+        <label for="other-reason">Please specify</label>
+        <input type="text" id="other-reason" placeholder="Reason">
+      </div>
+
+      <div class="row">
+        <div>
+          <label for="start-time">Break start time</label>
+          <input type="time" id="start-time" required>
+          <div class="hint">Must be between 9:00 AM and 9:00 PM</div>
+        </div>
+        <div>
+          <label for="return-time">Expected return time</label>
+          <input type="time" id="return-time" disabled>
+        </div>
+      </div>
+
+      <label for="notes">Notes (optional)</label>
+      <textarea id="notes" placeholder="Anything your manager should know"></textarea>
+
+      <div class="error" id="error-box"></div>
+      <div class="toast" id="toast-box">Break logged.</div>
+
+      <button type="submit" class="submit-btn">Log break</button>
+    </form>
+  </div>
+
+  <div class="card">
+    <div class="log-header">
+      <h2>Today's break log</h2>
+      <div class="log-actions">
+        <button type="button" id="export-btn">Export CSV</button>
+        <button type="button" id="clear-btn">Clear log</button>
+      </div>
+    </div>
+    <div id="log-container">
+      <div class="empty-state">No breaks logged yet today.</div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  const SHIFT_START_MIN = 9 * 60;
+  const SHIFT_END_MIN = 21 * 60;
+  const STORAGE_KEY = 'breakLog';
+
+  const form = document.getElementById('break-form');
+  const nameInput = document.getElementById('name');
+  const reasonSelect = document.getElementById('reason');
+  const otherWrap = document.getElementById('other-reason-wrap');
+  const otherInput = document.getElementById('other-reason');
+  const durationSelect = document.getElementById('duration');
+  const startTimeInput = document.getElementById('start-time');
+  const returnTimeInput = document.getElementById('return-time');
+  const notesInput = document.getElementById('notes');
+  const errorBox = document.getElementById('error-box');
+  const toastBox = document.getElementById('toast-box');
+  const logContainer = document.getElementById('log-container');
+  const exportBtn = document.getElementById('export-btn');
+  const clearBtn = document.getElementById('clear-btn');
+
+  function todayKey() {
+    const d = new Date();
+    return `${STORAGE_KEY}:${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`;
+  }
+
+  function loadEntries() {
+    try {
+      return JSON.parse(localStorage.getItem(todayKey())) || [];
+    } catch {
+      return [];
+    }
+  }
+
+  function saveEntries(entries) {
+    localStorage.setItem(todayKey(), JSON.stringify(entries));
+  }
+
+  function toMinutes(hhmm) {
+    const [h, m] = hhmm.split(':').map(Number);
+    return h * 60 + m;
+  }
+
+  function minutesToLabel(mins) {
+    const h24 = Math.floor(mins / 60) % 24;
+    const m = mins % 60;
+    const ampm = h24 >= 12 ? 'PM' : 'AM';
+    const h12 = h24 % 12 === 0 ? 12 : h24 % 12;
+    return `${h12}:${String(m).padStart(2, '0')} ${ampm}`;
+  }
+
+  function updateReturnTime() {
+    if (!startTimeInput.value) {
+      returnTimeInput.value = '';
+      return;
+    }
+    const startMin = toMinutes(startTimeInput.value);
+    const dur = Number(durationSelect.value);
+    const returnMin = startMin + dur;
+    const h = Math.floor(returnMin / 60) % 24;
+    const m = returnMin % 60;
+    returnTimeInput.value = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+  }
+
+  reasonSelect.addEventListener('change', () => {
+    otherWrap.style.display = reasonSelect.value === 'Other' ? 'block' : 'none';
+    otherInput.required = reasonSelect.value === 'Other';
+  });
+
+  startTimeInput.addEventListener('input', updateReturnTime);
+  durationSelect.addEventListener('change', updateReturnTime);
+
+  function showError(msg) {
+    errorBox.textContent = msg;
+    errorBox.classList.add('show');
+    toastBox.classList.remove('show');
+  }
+
+  function clearError() {
+    errorBox.classList.remove('show');
+  }
+
+  function renderLog() {
+    const entries = loadEntries();
+    if (entries.length === 0) {
+      logContainer.innerHTML = '<div class="empty-state">No breaks logged yet today.</div>';
+      return;
+    }
+    const rows = entries.map((e, i) => `
+      <tr>
+        <td>${escapeHtml(e.name)}</td>
+        <td><span class="badge">${escapeHtml(e.reason)}</span></td>
+        <td>${minutesToLabel(toMinutes(e.startTime))}</td>
+        <td>${minutesToLabel(toMinutes(e.returnTime))}</td>
+        <td>${escapeHtml(e.notes || '—')}</td>
+        <td><button class="del-btn" data-idx="${i}">Remove</button></td>
+      </tr>
+    `).join('');
+    logContainer.innerHTML = `
+      <table>
+        <thead>
+          <tr><th>Name</th><th>Reason</th><th>Start</th><th>Return</th><th>Notes</th><th></th></tr>
+        </thead>
+        <tbody>${rows}</tbody>
+      </table>
+    `;
+    logContainer.querySelectorAll('.del-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const idx = Number(btn.dataset.idx);
+        const updated = loadEntries();
+        updated.splice(idx, 1);
+        saveEntries(updated);
+        renderLog();
+      });
+    });
+  }
+
+  function escapeHtml(str) {
+    const div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
+  }
+
+  form.addEventListener('submit', (e) => {
+    e.preventDefault();
+    clearError();
+    toastBox.classList.remove('show');
+
+    const startMin = toMinutes(startTimeInput.value);
+    if (startMin < SHIFT_START_MIN || startMin > SHIFT_END_MIN) {
+      showError('Break start time must be between 9:00 AM and 9:00 PM.');
+      return;
+    }
+
+    const reason = reasonSelect.value === 'Other' ? otherInput.value.trim() : reasonSelect.value;
+    if (!reason) {
+      showError('Please provide a reason for the break.');
+      return;
+    }
+
+    updateReturnTime();
+
+    const entry = {
+      name: nameInput.value.trim(),
+      reason,
+      duration: durationSelect.value,
+      startTime: startTimeInput.value,
+      returnTime: returnTimeInput.value,
+      notes: notesInput.value.trim(),
+      loggedAt: new Date().toISOString(),
+    };
+
+    const entries = loadEntries();
+    entries.push(entry);
+    saveEntries(entries);
+    renderLog();
+
+    toastBox.textContent = `Break logged for ${entry.name} (${minutesToLabel(startMin)} - ${minutesToLabel(toMinutes(entry.returnTime))}).`;
+    toastBox.classList.add('show');
+
+    form.reset();
+    otherWrap.style.display = 'none';
+    returnTimeInput.value = '';
+  });
+
+  exportBtn.addEventListener('click', () => {
+    const entries = loadEntries();
+    if (entries.length === 0) return;
+    const header = ['Name', 'Reason', 'Duration (min)', 'Start Time', 'Return Time', 'Notes', 'Logged At'];
+    const rows = entries.map(e => [e.name, e.reason, e.duration, e.startTime, e.returnTime, e.notes, e.loggedAt]);
+    const csv = [header, ...rows]
+      .map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(','))
+      .join('\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `break-log-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  });
+
+  clearBtn.addEventListener('click', () => {
+    if (confirm('Clear all logged breaks for today?')) {
+      saveEntries([]);
+      renderLog();
+    }
+  });
+
+  renderLog();
+})();
+</script>
+</body>
+</html>
