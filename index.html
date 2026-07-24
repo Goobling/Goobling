@@ -259,7 +259,7 @@
   <div id="employee-page">
   <header>
     <h1>Break Request Log</h1>
-    <p>Shift hours: 9:00 AM – 9:00 PM. Log every break below.</p>
+    <p>Shift hours: 9:00 AM – 9:00 PM. Log every break below.<br><small style="opacity:0.7;">Synced across every device.</small></p>
   </header>
 
   <div class="card">
@@ -356,8 +356,13 @@
 (function () {
   const SHIFT_START_MIN = 9 * 60;
   const SHIFT_END_MIN = 21 * 60;
-  const STORAGE_KEY = 'breakLog';
   const MANAGER_PASSWORD = 'aspireHigh';
+
+  // Shared server-side storage (jsonblob.com — anonymous, free, cross-device).
+  // Every device that hits this URL sees the same log.
+  const BLOB_URL = 'https://jsonblob.com/api/jsonBlob/019f958a-1f41-72d1-a513-a418c49335b7';
+  const MANAGER_REFRESH_MS = 10000; // refresh manager view every 10s
+  let managerRefreshTimer = null;
 
   const employeePage = document.getElementById('employee-page');
   const managerPage = document.getElementById('manager-page');
@@ -386,19 +391,39 @@
 
   function todayKey() {
     const d = new Date();
-    return `${STORAGE_KEY}:${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`;
+    return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`;
   }
 
-  function loadEntries() {
-    try {
-      return JSON.parse(localStorage.getItem(todayKey())) || [];
-    } catch {
-      return [];
-    }
+  // Fetch entire log document from server, return {days: {...}}
+  async function fetchDoc() {
+    const res = await fetch(BLOB_URL, { cache: 'no-store' });
+    if (!res.ok) throw new Error('Failed to load log (HTTP ' + res.status + ')');
+    const data = await res.json();
+    if (!data.days) data.days = {};
+    return data;
   }
 
-  function saveEntries(entries) {
-    localStorage.setItem(todayKey(), JSON.stringify(entries));
+  // Save entire log document to server
+  async function saveDoc(doc) {
+    const res = await fetch(BLOB_URL, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(doc),
+    });
+    if (!res.ok) throw new Error('Failed to save log (HTTP ' + res.status + ')');
+  }
+
+  // Load today's entries (fetch full doc, return today's array)
+  async function loadEntries() {
+    const doc = await fetchDoc();
+    return doc.days[todayKey()] || [];
+  }
+
+  // Save today's entries (fetch full doc, replace today's array, save)
+  async function saveEntries(entries) {
+    const doc = await fetchDoc();
+    doc.days[todayKey()] = entries;
+    await saveDoc(doc);
   }
 
   function toMinutes(hhmm) {
@@ -445,8 +470,15 @@
     errorBox.classList.remove('show');
   }
 
-  function renderLog() {
-    const entries = loadEntries();
+  async function renderLog() {
+    logContainer.innerHTML = '<div class="empty-state">Loading…</div>';
+    let entries;
+    try {
+      entries = await loadEntries();
+    } catch (err) {
+      logContainer.innerHTML = '<div class="empty-state" style="color:var(--danger);">' + escapeHtml(err.message) + '</div>';
+      return;
+    }
     if (entries.length === 0) {
       logContainer.innerHTML = '<div class="empty-state">No breaks logged yet today.</div>';
       return;
@@ -470,12 +502,18 @@
       </table>
     `;
     logContainer.querySelectorAll('.del-btn').forEach(btn => {
-      btn.addEventListener('click', () => {
+      btn.addEventListener('click', async () => {
         const idx = Number(btn.dataset.idx);
-        const updated = loadEntries();
-        updated.splice(idx, 1);
-        saveEntries(updated);
-        renderLog();
+        btn.disabled = true;
+        try {
+          const updated = await loadEntries();
+          updated.splice(idx, 1);
+          await saveEntries(updated);
+          await renderLog();
+        } catch (err) {
+          alert('Could not remove entry: ' + err.message);
+          btn.disabled = false;
+        }
       });
     });
   }
@@ -486,7 +524,7 @@
     return div.innerHTML;
   }
 
-  form.addEventListener('submit', (e) => {
+  form.addEventListener('submit', async (e) => {
     e.preventDefault();
     clearError();
     toastBox.classList.remove('show');
@@ -515,21 +553,29 @@
       loggedAt: new Date().toISOString(),
     };
 
-    const entries = loadEntries();
-    entries.push(entry);
-    saveEntries(entries);
-    renderLog();
-
-    toastBox.textContent = `Break logged for ${entry.name} (${minutesToLabel(startMin)} - ${minutesToLabel(toMinutes(entry.returnTime))}).`;
-    toastBox.classList.add('show');
-
-    form.reset();
-    otherWrap.style.display = 'none';
-    returnTimeInput.value = '';
+    const submitBtn = form.querySelector('.submit-btn');
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Saving…';
+    try {
+      const entries = await loadEntries();
+      entries.push(entry);
+      await saveEntries(entries);
+      toastBox.textContent = `Break logged for ${entry.name} (${minutesToLabel(startMin)} - ${minutesToLabel(toMinutes(entry.returnTime))}).`;
+      toastBox.classList.add('show');
+      form.reset();
+      otherWrap.style.display = 'none';
+      returnTimeInput.value = '';
+    } catch (err) {
+      showError('Could not save: ' + err.message);
+    } finally {
+      submitBtn.disabled = false;
+      submitBtn.textContent = 'Log break';
+    }
   });
 
-  exportBtn.addEventListener('click', () => {
-    const entries = loadEntries();
+  exportBtn.addEventListener('click', async () => {
+    let entries;
+    try { entries = await loadEntries(); } catch { return; }
     if (entries.length === 0) return;
     const header = ['Name', 'Reason', 'Duration (min)', 'Start Time', 'Return Time', 'Notes', 'Logged At'];
     const rows = entries.map(e => [e.name, e.reason, e.duration, e.startTime, e.returnTime, e.notes, e.loggedAt]);
@@ -545,10 +591,16 @@
     URL.revokeObjectURL(url);
   });
 
-  clearBtn.addEventListener('click', () => {
-    if (confirm('Clear all logged breaks for today?')) {
-      saveEntries([]);
-      renderLog();
+  clearBtn.addEventListener('click', async () => {
+    if (!confirm("Clear all logged breaks for today?")) return;
+    clearBtn.disabled = true;
+    try {
+      await saveEntries([]);
+      await renderLog();
+    } catch (err) {
+      alert('Could not clear: ' + err.message);
+    } finally {
+      clearBtn.disabled = false;
     }
   });
 
@@ -569,6 +621,11 @@
       employeePage.style.display = 'none';
       managerPage.style.display = 'block';
       renderLog();
+      // Auto-refresh so manager sees new entries in real time.
+      if (managerRefreshTimer) clearInterval(managerRefreshTimer);
+      managerRefreshTimer = setInterval(() => {
+        if (managerPage.style.display !== 'none') renderLog();
+      }, MANAGER_REFRESH_MS);
     } else {
       modalError.classList.add('show');
     }
@@ -590,9 +647,10 @@
   backBtn.addEventListener('click', () => {
     managerPage.style.display = 'none';
     employeePage.style.display = 'block';
+    if (managerRefreshTimer) { clearInterval(managerRefreshTimer); managerRefreshTimer = null; }
   });
 
-  renderLog();
+  // No initial render — the log is only shown on the manager page after login.
 })();
 </script>
 </body>
